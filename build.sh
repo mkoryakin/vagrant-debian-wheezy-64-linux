@@ -4,6 +4,8 @@
 hash mkisofs 2>/dev/null || { echo >&2 "ERROR: mkisofs not found.  Aborting."; exit 1; }
 hash vagrant 2>/dev/null || { echo >&2 "ERROR: vagrant not found.  Aborting."; exit 1; }
 hash VBoxManage 2>/dev/null || { echo >&2 "ERROR: VBoxManage not found.  Aborting."; exit 1; }
+hash 7z 2>/dev/null || { echo >&2 "ERROR: 7z not found.  Aborting."; exit 1; }
+hash cpio 2>/dev/null || { echo >&2 "ERROR: cpio not found.  Aborting."; exit 1; }
 
 set -o nounset
 set -o errexit
@@ -39,7 +41,7 @@ mkdir -p "${FOLDER_ISO_INITRD}"
 
 ISO_FILENAME="${FOLDER_ISO}/`basename ${ISO_URL}`"
 INITRD_FILENAME="${FOLDER_ISO}/initrd.gz"
-ISO_GUESTADDITIONS="/Applications/VirtualBox.app/Contents/MacOS/VBoxGuestAdditions.iso"
+ISO_GUESTADDITIONS="/usr/lib/virtualbox/additions/VBoxGuestAdditions.iso"
 
 # download the installation disk if you haven't already or it is corrupted somehow
 echo "Downloading `basename ${ISO_URL}` ..."
@@ -47,7 +49,7 @@ if [ ! -e "${ISO_FILENAME}" ]; then
   curl --output "${ISO_FILENAME}" -L "${ISO_URL}"
 
   # make sure download is right...
-  ISO_HASH=`md5 -q "${ISO_FILENAME}"`
+  ISO_HASH=`md5sum "${ISO_FILENAME}" | awk '{print $1}'`
   if [ "${ISO_MD5}" != "${ISO_HASH}" ]; then
     echo "ERROR: MD5 does not match. Got ${ISO_HASH} instead of ${ISO_MD5}. Aborting."
     exit 1
@@ -59,26 +61,7 @@ echo "Creating Custom ISO"
 if [ ! -e "${FOLDER_ISO}/custom.iso" ]; then
 
   echo "Untarring downloaded ISO ..."
-  tar -C "${FOLDER_ISO_CUSTOM}" -xf "${ISO_FILENAME}"
-
-  # in osx lion 10.7.4, tar won't extract anything and will fail silently. If that happens, look for a newer version of bsd tar
-  if [ ! `ls $FOLDER_ISO_CUSTOM` ]; then
-      TAR_COMMAND=tar
-      if [ -x '/usr/local/bin/bsdtar' ];
-      then
-          LOCAL_BSD_TAR=/usr/local/bin/bsdtar
-      else
-          LOCAL_BSD_TAR=/usr/bin/bsdtar
-      fi
-      echo "Tar failed to extract ISO, falling back to $LOCAL_BSD_TAR"
-      "${LOCAL_BSD_TAR}" -C "${FOLDER_ISO_CUSTOM}" -xf "${ISO_FILENAME}"
-  fi
-
-  # If that still didn't work, you have to update tar
-  if [ ! `ls -A $FOLDER_ISO_CUSTOM` ]; then
-    echo "Error with extracting the ISO file with your version of tar. Try updating to libarchive 3.0.4 (using e.g. the homebrew-dupes project)"
-    exit 1
-  fi
+  7z x "${ISO_FILENAME}" -o"${FOLDER_ISO_CUSTOM}"
 
   # backup initrd.gz
   echo "Backing up current init.rd ..."
@@ -90,11 +73,11 @@ if [ ! -e "${FOLDER_ISO}/custom.iso" ]; then
   # stick in our new initrd.gz
   echo "Installing new initrd.gz ..."
   cd "${FOLDER_ISO_INITRD}"
-  gunzip -c "${FOLDER_ISO_CUSTOM}/install/initrd.gz.org" | cpio -id
+  gunzip -c "${FOLDER_ISO_CUSTOM}/install/initrd.gz.org" | sudo cpio -id
   cd "${FOLDER_BASE}"
   cp preseed.cfg "${FOLDER_ISO_INITRD}/preseed.cfg"
   cd "${FOLDER_ISO_INITRD}"
-  find . | cpio --create --format='newc' | gzip  > "${FOLDER_ISO_CUSTOM}/install/initrd.gz"
+  find . | sudo cpio --create --format='newc' | gzip  > "${FOLDER_ISO_CUSTOM}/install/initrd.gz"
 
   # clean up permissions
   echo "Cleaning up Permissions ..."
@@ -120,6 +103,10 @@ if [ ! -e "${FOLDER_ISO}/custom.iso" ]; then
     -c isolinux/boot.cat -no-emul-boot \
     -boot-load-size 4 -boot-info-table \
     -o "${FOLDER_ISO}/custom.iso" "${FOLDER_ISO_CUSTOM}"
+
+  echo "Repair permissions for folders ..."
+  sudo chown -R `id -u $USERNAME`:`id -g $USERNAME` "${FOLDER_ISO}"
+  sudo chown -R `id -u $USERNAME`:`id -g $USERNAME` "${FOLDER_BUILD}"
 fi
 
 echo "Creating VM Box..."
