@@ -1,6 +1,6 @@
 ## About
 
-# This script was upgraded to work in arch linux env
+#### This script was upgraded to work in arch linux env
 
 This script will:
 
@@ -20,5 +20,5 @@ To add `package.box` with name `debian-71` into vagrant:
 
 ### Notes
 
-# This script is clone of [repo](https://github.com/dotzero/vagrant-debian-wheezy-64) with some changes to work on Arch Linux 
+#### This script is clone of [repo](https://github.com/dotzero/vagrant-debian-wheezy-64) with some changes to work on Arch Linux 
 This script basted on original Carl's [repo](https://github.com/cal/vagrant-ubuntu-precise-64) and with some tweaks to be compatible Debian 7.1.
